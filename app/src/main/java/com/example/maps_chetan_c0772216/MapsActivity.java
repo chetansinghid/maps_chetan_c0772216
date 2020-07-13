@@ -68,11 +68,65 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
 
         setupLocationTracker();
+        setUpMoveMarkerLocationUpdateTracker();
+        setUpLongClickGestureRecognizer();
+        setupPolygonClickListener();
 //        moveCameraToLocationBounds();
         mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(56.1304, -106.3468)));
 
     }
 
+    private void setupPolygonClickListener() {
+        mMap.setOnPolygonClickListener(new GoogleMap.OnPolygonClickListener() {
+            @Override
+            public void onPolygonClick(Polygon polygon) {
+                
+            }
+        });
+    }
+
+    private void setUpLongClickGestureRecognizer() {
+        mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+            @Override
+            public void onMapLongClick(LatLng latLng) {
+                LatLng l1 = new LatLng(latLng.latitude - 5, latLng.longitude - 5);
+                LatLng l2 = new LatLng(latLng.latitude + 5, latLng.latitude + 5);
+                LatLngBounds latLngBounds = new LatLngBounds(l1, l2);
+                if(latLngBounds.contains(markerList.get(0).getPosition())) {
+                    clearMarker();
+                }
+            }
+            public void clearMarker() {
+                markerList.get(0).remove();
+            }
+
+        });
+    }
+
+    //  updates the marker location on dragging
+    private void setUpMoveMarkerLocationUpdateTracker() {
+        mMap.setOnMarkerDragListener(new GoogleMap.OnMarkerDragListener() {
+            @Override
+            public void onMarkerDragStart(Marker marker) {
+                marker.hideInfoWindow();
+            }
+
+            @Override
+            public void onMarkerDrag(Marker marker) {
+
+            }
+
+            @Override
+            public void onMarkerDragEnd(Marker marker) {
+                LatLng newLocation = marker.getPosition();
+                ArrayList<String> newAddressDetails = getLocationAddressDetails(newLocation);
+                marker.setTitle(newAddressDetails.get(0));
+                marker.setSnippet(newAddressDetails.get(1));
+                marker.showInfoWindow();
+            }
+        });
+    }
+//  sets up adding location marker on tap
     private void setupLocationTracker() {
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
@@ -91,7 +145,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             private void drawShape() {
                 PolygonOptions options = new PolygonOptions()
-                        .fillColor(0x33000000)
+                        .fillColor(Color.parseColor("#5900FF00"))
                         .strokeColor(Color.RED)
                         .strokeWidth(10);
 
