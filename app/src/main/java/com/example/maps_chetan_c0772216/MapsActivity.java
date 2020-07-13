@@ -4,6 +4,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.FragmentActivity;
 
 import android.Manifest;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -44,12 +46,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private static final int REQUEST_CODE = 1;
     List<Marker> markerList = new ArrayList<>();
-    private LatLngBounds latLngBounds;
     private Polygon quadilateral;
     private List<Polyline> polylineList = new ArrayList<>();
     private static final int MAX_MARKERS = 4;
     private ArrayList<Double> angleList = new ArrayList<>();
-    private ArrayList<Float> distanceList = new ArrayList<>();
+    private float distance = 0;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -77,8 +80,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         setUpMoveMarkerLocationUpdateTracker();
         setUpLongClickGestureRecognizer();
         setupPolygonClickListener();
+        setupPolylineClickListener();
 //        moveCameraToLocationBounds();
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(56.1304, -106.3468)));
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(56.1304, -106.3468),10f));
 
     }
 
@@ -86,12 +90,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setOnPolygonClickListener(new GoogleMap.OnPolygonClickListener() {
             @Override
             public void onPolygonClick(Polygon polygon) {
-                double sum = 0;
-                for(int i=0; i<4; i++) {
-                    sum += distanceList.get(i);
-                }
+                Toast.makeText(MapsActivity.this, "Total Distance: " + distance + "KM", Toast.LENGTH_LONG).show();
+            }
+        });
+    }
 
 
+    private void setupPolylineClickListener() {
+        mMap.setOnPolylineClickListener(new GoogleMap.OnPolylineClickListener() {
+            @Override
+            public void onPolylineClick(Polyline polyline) {
+                LatLng ptOne = polyline.getPoints().get(0);
+                LatLng ptTwo = polyline.getPoints().get(1);
+
+                double lat = (ptOne.latitude + ptTwo.latitude)/2;
+                double lng = (ptOne.longitude + ptTwo.longitude)/2;
+                float results[] = new float[10];
+                Location.distanceBetween(ptOne.latitude, ptOne.longitude, ptTwo.latitude,ptTwo.longitude, results);
+                float distanceLine = results[0];
+                Toast.makeText(MapsActivity.this, "Distance: " + distanceLine + "KM", Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -100,31 +117,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng latLng) {
-                LatLng l1 = new LatLng(latLng.latitude - 5, latLng.longitude - 5);
-                LatLng l2 = new LatLng(latLng.latitude + 5, latLng.latitude + 5);
-                LatLngBounds latLngBounds = new LatLngBounds(l1, l2);
-                if(latLngBounds.contains(markerList.get(0).getPosition())) {
-                    clearMarker();
+                for(Marker marker: markerList) {
+                    if(Math.abs(marker.getPosition().latitude - latLng.latitude) < 0.05 && Math.abs(marker.getPosition().longitude - latLng.longitude) < 0.05) {
+                        if(markerList.size() == MAX_MARKERS) {
+                            removeOverlays();
+                        }
+                        marker.remove();
+                        markerList.remove(marker);
+                        break;
+                    }
                 }
             }
-            public void clearMarker() {
-                markerList.get(0).remove();
-            }
-
         });
     }
 
-    private void setUpMarkerTapGestureRecognizer() {
-        mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
-            @Override
-            public boolean onMarkerClick(Marker marker) {
-                markerList.remove(marker);
-                marker.remove();
-                return true;
-            }
-            
-        });
-    }
 
     //  updates the marker location on dragging
     private void setUpMoveMarkerLocationUpdateTracker() {
@@ -143,18 +149,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             public void onMarkerDragEnd(Marker marker) {
                 LatLng newLocation = marker.getPosition();
                 ArrayList<String> newAddressDetails = getLocationAddressDetails(newLocation);
-                marker.setTitle(newAddressDetails.get(0));
-                marker.setSnippet(newAddressDetails.get(1));
+                if(newAddressDetails.size()>0)
+                {
+                    marker.setTitle(newAddressDetails.get(0));
+                    marker.setSnippet(newAddressDetails.get(1));
+                }
                 marker.showInfoWindow();
                 checkQuadilateral();
             }
 
             private void checkQuadilateral() {
                 if(markerList.size() == MAX_MARKERS) {
-                    for(Polyline line: polylineList) {
-                        line.remove();
-                    }
-                    quadilateral.remove();
+                    removeOverlays();
                     sortPoints();
                     drawPolygon();
                     drawPolylines();
@@ -233,7 +239,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         markerOptions.title(title);
         markerOptions.snippet(snippet);
         markerOptions.draggable(true);
-        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
+        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
         return markerOptions;
     }
 
@@ -261,7 +267,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         float results[] = new float[10];
         Location.distanceBetween(pointA.getPosition().latitude, pointA.getPosition().longitude,
                 pointB.getPosition().latitude, pointB.getPosition().longitude, results);
-        distanceList.add(results[0]);
+        distance += results[0];
     }
 
     private void drawPolygon() {
@@ -315,6 +321,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         LatLng centerLocation = new LatLng(x / MAX_MARKERS, y / MAX_MARKERS);
         return centerLocation;
+    }
+
+    private void removeOverlays() {
+        for(Polyline line: polylineList) {
+            line.remove();
+        }
+        quadilateral.remove();
     }
 //    move the camera to the location bounds
 //    private void moveCameraToLocationBounds() {
