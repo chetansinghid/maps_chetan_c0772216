@@ -30,8 +30,11 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -44,6 +47,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private LatLngBounds latLngBounds;
     private Polygon quadilateral;
     private static final int MAX_MARKERS = 4;
+    private ArrayList<Double> angleList = new ArrayList<>();
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -80,7 +84,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setOnPolygonClickListener(new GoogleMap.OnPolygonClickListener() {
             @Override
             public void onPolygonClick(Polygon polygon) {
-                
+
             }
         });
     }
@@ -139,15 +143,38 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     addLocationMarker(location);
                 }
 //                checks if new marker addition causes quad formation
-                if (markerList.size() == MAX_MARKERS)
-                    drawShape();
+                if (markerList.size() == MAX_MARKERS) {
+                    sortPoints();
+                    drawPolygon();
+                    drawPolylines();
+                }
+
+            }
+//            draws polyline
+            private void drawPolylines() {
+                for(int i = 0; i<4; i++) {
+                    if(i==3) {
+                        drawPolyline(markerList.get(i), markerList.get(0));
+                    }
+                    else {
+                        drawPolyline(markerList.get(i), markerList.get(i + 1));
+                    }
+                }
             }
 
-            private void drawShape() {
+            private void drawPolyline(Marker pointA, Marker pointB) {
+                Polyline polyline = mMap.addPolyline(new PolylineOptions()
+                        .clickable(true)
+                        .add(
+                                pointA.getPosition(),
+                                pointB.getPosition()));
+                polyline.setWidth(10);
+                polyline.setColor(Color.RED);
+            }
+
+            private void drawPolygon() {
                 PolygonOptions options = new PolygonOptions()
-                        .fillColor(Color.parseColor("#5900FF00"))
-                        .strokeColor(Color.RED)
-                        .strokeWidth(10);
+                        .fillColor(Color.parseColor("#5900FF00"));
 
                 for (int i=0; i<MAX_MARKERS; i++) {
                     options.add(markerList.get(i).getPosition());
@@ -155,7 +182,48 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                 quadilateral = mMap.addPolygon(options);
             }
+//          sort points for simple polygon
+            private void sortPoints() {
+                findAngles();
+                for(int i=0;i<4;i++) {
+                    for(int j=0; j<3; j++) {
+                        if(angleList.get(j) > angleList.get(j+1)) {
+                            double angle = angleList.get(j);
+                            angleList.set(j, angleList.get(j+1));
+                            angleList.set(j+1, angle);
 
+                            Marker marker = markerList.get(j);
+                            markerList.set(j, markerList.get(j+1));
+                            markerList.set(j+1, marker);
+                        }
+                    }
+                }
+            }
+//            finds angles
+            private void findAngles() {
+                LatLng centerLocation = findCenter();
+                double dx, dy;
+
+                for (int i = 0; i < MAX_MARKERS; i++) {
+                    LatLng position = markerList.get(i).getPosition();
+                    dx = position.latitude - centerLocation.latitude;
+                    dy = position.longitude - centerLocation.longitude;
+
+                    angleList.add(Math.atan2(dy, dx));
+                }
+            }
+//          find center point
+            private LatLng findCenter() {
+
+                double x = 0, y = 0;
+
+                for (int i = 0; i < MAX_MARKERS; i++) {
+                    x += markerList.get(i).getPosition().latitude;
+                    y += markerList.get(i).getPosition().longitude;
+                }
+                LatLng centerLocation = new LatLng(x / MAX_MARKERS, y / MAX_MARKERS);
+                return centerLocation;
+            }
         });
     }
 
