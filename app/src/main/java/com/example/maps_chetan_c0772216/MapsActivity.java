@@ -6,6 +6,7 @@ import androidx.fragment.app.FragmentActivity;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -22,9 +23,13 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polygon;
+import com.google.android.gms.maps.model.PolygonOptions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,8 +40,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private GoogleMap mMap;
 
     private static final int REQUEST_CODE = 1;
-    private LatLng cityA, cityB, cityC, cityD;
-
+    List<Marker> markerList = new ArrayList<>();
+    private LatLngBounds latLngBounds;
+    private Polygon quadilateral;
+    private static final int MAX_MARKERS = 4;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -60,9 +67,41 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             return;
         }
 
-        setupLocations();
+        setupLocationTracker();
+//        moveCameraToLocationBounds();
 
+    }
 
+    private void setupLocationTracker() {
+        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+            @Override
+            public void onMapClick(LatLng latLng) {
+                updateMapView(latLng);
+            }
+
+            public void updateMapView(LatLng location) {
+                if (markerList.size() < MAX_MARKERS) {
+                    addLocationMarker(location);
+                }
+//                checks if new marker addition causes quad formation
+                if (markerList.size() == MAX_MARKERS)
+                    drawShape();
+            }
+
+            private void drawShape() {
+                PolygonOptions options = new PolygonOptions()
+                        .fillColor(0x33000000)
+                        .strokeColor(Color.RED)
+                        .strokeWidth(5);
+
+                for (int i=0; i<MAX_MARKERS; i++) {
+                    options.add(markerList.get(i).getPosition());
+                }
+
+                quadilateral = mMap.addPolygon(options);
+            }
+
+        });
     }
 
     //  request the location permission
@@ -73,17 +112,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private boolean hasLocationPermission() {
         return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
-//    sets up the initial location for cities
-    private void setupLocations() {
-        cityA = new LatLng(43.6532, -79.3832);
-        addLocationMarker(cityA);
-        cityB = new LatLng(49.246292, -123.116226);
-        addLocationMarker(cityB);
-        cityC = new LatLng(51.0447, -114.0719);
-        addLocationMarker(cityC);
-        cityD = new LatLng(45.421532, -75.697189);
-        addLocationMarker(cityD);
-    }
+
 //  adds the location marker
     private void addLocationMarker(LatLng location) {
         ArrayList<String> locationDetails = getLocationAddressDetails(location);
@@ -98,7 +127,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
 
         MarkerOptions locationMarker = makeMarker(location, title, snippet);
-        mMap.addMarker(locationMarker);
+        markerList.add(mMap.addMarker(locationMarker));
     }
 //  fetches the geocoder details of latlangs
     private ArrayList<String> getLocationAddressDetails(LatLng location) {
@@ -107,7 +136,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             Geocoder geocoder = new Geocoder(MapsActivity.this, Locale.getDefault());
             List<Address> addressList = geocoder.getFromLocation(location.latitude, location.longitude, 1);
             Address address = addressList.get(0);
-            String title = address.getThoroughfare() + "," + address.getSubThoroughfare();
+            String title = address.getThoroughfare() + "," + address.getSubThoroughfare() + address.getPostalCode();
             String snippet = address.getLocality() + "," + address.getAdminArea();
             addressDetails.add(title);
             addressDetails.add(snippet);
@@ -123,8 +152,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         markerOptions.title(title);
         markerOptions.snippet(snippet);
         markerOptions.draggable(true);
+        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
         return markerOptions;
     }
+//    move the camera to the location bounds
+//    private void moveCameraToLocationBounds() {
+//        latLngBounds = new LatLngBounds(cityA, cityD);
+//        mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(latLngBounds, 10));
+//    }
 
 
 }
