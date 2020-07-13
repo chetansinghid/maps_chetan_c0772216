@@ -46,8 +46,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     List<Marker> markerList = new ArrayList<>();
     private LatLngBounds latLngBounds;
     private Polygon quadilateral;
+    private List<Polyline> polylineList = new ArrayList<>();
     private static final int MAX_MARKERS = 4;
     private ArrayList<Double> angleList = new ArrayList<>();
+    private ArrayList<Float> distanceList = new ArrayList<>();
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,6 +86,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setOnPolygonClickListener(new GoogleMap.OnPolygonClickListener() {
             @Override
             public void onPolygonClick(Polygon polygon) {
+                double sum = 0;
+                for(int i=0; i<4; i++) {
+                    sum += distanceList.get(i);
+                }
+
 
             }
         });
@@ -107,6 +114,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
     }
 
+    private void setUpMarkerTapGestureRecognizer() {
+        mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
+            @Override
+            public boolean onMarkerClick(Marker marker) {
+                markerList.remove(marker);
+                marker.remove();
+                return true;
+            }
+            
+        });
+    }
+
     //  updates the marker location on dragging
     private void setUpMoveMarkerLocationUpdateTracker() {
         mMap.setOnMarkerDragListener(new GoogleMap.OnMarkerDragListener() {
@@ -127,6 +146,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 marker.setTitle(newAddressDetails.get(0));
                 marker.setSnippet(newAddressDetails.get(1));
                 marker.showInfoWindow();
+                checkQuadilateral();
+            }
+
+            private void checkQuadilateral() {
+                if(markerList.size() == MAX_MARKERS) {
+                    for(Polyline line: polylineList) {
+                        line.remove();
+                    }
+                    quadilateral.remove();
+                    sortPoints();
+                    drawPolygon();
+                    drawPolylines();
+                }
             }
         });
     }
@@ -149,80 +181,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     drawPolylines();
                 }
 
-            }
-//            draws polyline
-            private void drawPolylines() {
-                for(int i = 0; i<4; i++) {
-                    if(i==3) {
-                        drawPolyline(markerList.get(i), markerList.get(0));
-                    }
-                    else {
-                        drawPolyline(markerList.get(i), markerList.get(i + 1));
-                    }
-                }
-            }
-
-            private void drawPolyline(Marker pointA, Marker pointB) {
-                Polyline polyline = mMap.addPolyline(new PolylineOptions()
-                        .clickable(true)
-                        .add(
-                                pointA.getPosition(),
-                                pointB.getPosition()));
-                polyline.setWidth(10);
-                polyline.setColor(Color.RED);
-            }
-
-            private void drawPolygon() {
-                PolygonOptions options = new PolygonOptions()
-                        .fillColor(Color.parseColor("#5900FF00"));
-
-                for (int i=0; i<MAX_MARKERS; i++) {
-                    options.add(markerList.get(i).getPosition());
-                }
-
-                quadilateral = mMap.addPolygon(options);
-            }
-//          sort points for simple polygon
-            private void sortPoints() {
-                findAngles();
-                for(int i=0;i<4;i++) {
-                    for(int j=0; j<3; j++) {
-                        if(angleList.get(j) > angleList.get(j+1)) {
-                            double angle = angleList.get(j);
-                            angleList.set(j, angleList.get(j+1));
-                            angleList.set(j+1, angle);
-
-                            Marker marker = markerList.get(j);
-                            markerList.set(j, markerList.get(j+1));
-                            markerList.set(j+1, marker);
-                        }
-                    }
-                }
-            }
-//            finds angles
-            private void findAngles() {
-                LatLng centerLocation = findCenter();
-                double dx, dy;
-
-                for (int i = 0; i < MAX_MARKERS; i++) {
-                    LatLng position = markerList.get(i).getPosition();
-                    dx = position.latitude - centerLocation.latitude;
-                    dy = position.longitude - centerLocation.longitude;
-
-                    angleList.add(Math.atan2(dy, dx));
-                }
-            }
-//          find center point
-            private LatLng findCenter() {
-
-                double x = 0, y = 0;
-
-                for (int i = 0; i < MAX_MARKERS; i++) {
-                    x += markerList.get(i).getPosition().latitude;
-                    y += markerList.get(i).getPosition().longitude;
-                }
-                LatLng centerLocation = new LatLng(x / MAX_MARKERS, y / MAX_MARKERS);
-                return centerLocation;
             }
         });
     }
@@ -277,6 +235,86 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         markerOptions.draggable(true);
         markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
         return markerOptions;
+    }
+
+    //            draws polyline
+    private void drawPolylines() {
+        for(int i = 0; i<4; i++) {
+            if(i==3) {
+                drawPolyline(markerList.get(i), markerList.get(0));
+            }
+            else {
+                drawPolyline(markerList.get(i), markerList.get(i + 1));
+            }
+        }
+    }
+
+    private void drawPolyline(Marker pointA, Marker pointB) {
+        Polyline polyline = mMap.addPolyline(new PolylineOptions()
+                .clickable(true)
+                .add(
+                        pointA.getPosition(),
+                        pointB.getPosition()));
+        polyline.setWidth(10);
+        polyline.setColor(Color.RED);
+        polylineList.add(polyline);
+        float results[] = new float[10];
+        Location.distanceBetween(pointA.getPosition().latitude, pointA.getPosition().longitude,
+                pointB.getPosition().latitude, pointB.getPosition().longitude, results);
+        distanceList.add(results[0]);
+    }
+
+    private void drawPolygon() {
+        PolygonOptions options = new PolygonOptions()
+                .fillColor(Color.parseColor("#5900FF00"))
+                .clickable(true);
+        for (int i=0; i<MAX_MARKERS; i++) {
+            options.add(markerList.get(i).getPosition());
+        }
+
+        quadilateral = mMap.addPolygon(options);
+    }
+    //          sort points for simple polygon
+    private void sortPoints() {
+        findAngles();
+        for(int i=0;i<4;i++) {
+            for(int j=0; j<3; j++) {
+                if(angleList.get(j) > angleList.get(j+1)) {
+                    double angle = angleList.get(j);
+                    angleList.set(j, angleList.get(j+1));
+                    angleList.set(j+1, angle);
+
+                    Marker marker = markerList.get(j);
+                    markerList.set(j, markerList.get(j+1));
+                    markerList.set(j+1, marker);
+                }
+            }
+        }
+    }
+    //            finds angles
+    private void findAngles() {
+        LatLng centerLocation = findCenter();
+        double dx, dy;
+
+        for (int i = 0; i < MAX_MARKERS; i++) {
+            LatLng position = markerList.get(i).getPosition();
+            dx = position.latitude - centerLocation.latitude;
+            dy = position.longitude - centerLocation.longitude;
+
+            angleList.add(Math.atan2(dy, dx));
+        }
+    }
+    //          find center point
+    private LatLng findCenter() {
+
+        double x = 0, y = 0;
+
+        for (int i = 0; i < MAX_MARKERS; i++) {
+            x += markerList.get(i).getPosition().latitude;
+            y += markerList.get(i).getPosition().longitude;
+        }
+        LatLng centerLocation = new LatLng(x / MAX_MARKERS, y / MAX_MARKERS);
+        return centerLocation;
     }
 //    move the camera to the location bounds
 //    private void moveCameraToLocationBounds() {
