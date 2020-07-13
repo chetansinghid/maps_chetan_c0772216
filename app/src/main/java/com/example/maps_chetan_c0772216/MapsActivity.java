@@ -69,6 +69,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         setupLocationTracker();
 //        moveCameraToLocationBounds();
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(56.1304, -106.3468)));
 
     }
 
@@ -92,7 +93,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 PolygonOptions options = new PolygonOptions()
                         .fillColor(0x33000000)
                         .strokeColor(Color.RED)
-                        .strokeWidth(5);
+                        .strokeWidth(10);
 
                 for (int i=0; i<MAX_MARKERS; i++) {
                     options.add(markerList.get(i).getPosition());
